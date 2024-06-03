@@ -186,6 +186,11 @@ def irrigation_insights():
 	Return:
 		insight (string): string with irrigation insight
 	"""
+	
+	# Add chance of rain
+	# Add daily_precipitation
+	# Add ET 
+	
     s = ['REFILL', 'FULL', 'OPTIMAL']
 
     sws = random.choice(s)
@@ -221,6 +226,14 @@ def irrigation_insights():
 
     return insight
 
+
+def effluent_insights():
+	""" """
+	# pond level
+	# ETa
+	
+	return 0
+	
 
 def main():
     """
