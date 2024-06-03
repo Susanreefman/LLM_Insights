@@ -6,10 +6,84 @@
 """
 import json
 import sys
+import math
 import random
 import datetime
 from collections import defaultdict
 
+
+def interval_extract(times):
+    length = len(times)
+    i = 0
+    while i < length:
+        low = times[i]
+        while i < length - 1 and times[i] + 1 == times[i + 1]:
+            i += 1
+        high = times[i]
+        if (high - low) >= 1:
+            yield [low, high]
+        elif (high - low) == 1:
+            yield [low, ]
+            yield [high, ]
+        else:
+            yield [low, ]
+        i += 1
+
+
+def spray_condition_insight(parsed_dates, message):
+    # Group by date
+    date_groups = defaultdict(list)
+    for dt in parsed_dates:
+        date_groups[dt[:2]].append(int(dt[11:13]))
+
+    # Construct the output string
+    if message == 'very_good':
+        output = "Spraying conditions are expected to be very good on the"
+    if message == 'good':
+        output = "Spraying conditions are expected to be good on the"
+    if message == 'reasonable':
+        output = "Spraying conditions are expected to be reasonable on the"
+
+    date_strings = []
+    for date, times in date_groups.items():
+        continuous_intervals = interval_extract(times)
+        for i in continuous_intervals:
+            if len(i) == 1:
+                date_strings.append(f"{output} {date[:2]}th of June around {i[0]}:00.")
+            else:
+                date_strings.append(
+                    f"{output} {date[:2]}th of June between {i[0]}:00 and {i[1]}:00.")
+
+    insight = ' '.join(date_strings)
+    return insight
+
+
+def get_spray_conditions():
+    f = open('spray.json')
+    data = json.load(f)
+    spray_times = []
+    very_good = []
+    good = []
+    reasonable = []
+    for i in data['content']:
+        if data['content'][i]['advice'] == 'VERY_GOOD':
+            very_good.append(datetime.datetime.fromtimestamp(int(i) / 1000).strftime('%d-%m-%Y %H:%M:%S'))
+        if len(very_good) == 0:
+            if data['content'][i]['advice'] == 'GOOD':
+                good.append(datetime.datetime.fromtimestamp(int(i) / 1000).strftime('%d-%m-%Y %H:%M:%S'))
+            if len(good) == 0:
+                if data['content'][i]['advice'] == 'REASONABLE':
+                    reasonable.append(datetime.datetime.fromtimestamp(int(i) / 1000).strftime('%d-%m-%Y %H:%M:%S'))
+                if len(reasonable) == 0:
+                    insight = 'There are not moments in the upcoming week when the spraying conditions are optimal'
+                else:
+                    insight = spray_condition_insight(reasonable, 'reasonable')
+            else:
+                insight = spray_condition_insight(good, 'good')
+        else:
+            insight = spray_condition_insight(very_good, 'very_good')
+    return insight
+    
 
 def disease_insights():
     s = ['RECOMMENDED', 'CONSIDER', 'NULL']
@@ -48,7 +122,7 @@ def disease_insights():
             insight = 'Consider application of translaminar fungicide. Your crop might be infected, ' \
                       'consider applying a translaminar fungicide to suppress a recent infection. A translaminar ' \
                       'fungicide will prevent further penetration of the fungi in the plant.'
-        
+        spray_insight = get_spray_conditions()
 
     if suggestion == 'RECOMMENDED':
         reason = random.choice(r)
@@ -72,13 +146,13 @@ def disease_insights():
             insight = 'Application of translaminar fungicide is required. Your crop is likely infected, ' \
                       'we strongly recommend to apply a translaminar fungicide to suppress a recent infection. A ' \
                       'translaminar fungicide will prevent further penetration of the fungi in the plant.'
-        
+        spray_insight = get_spray_conditions()
 
     if suggestion == 'NULL':
         insight = 'Application of fungicide not necessary. The circumstances are favorable for a well protected crop.'
         spray_insight = ''
 
-    return insight
+    return insight + spray_insight
 
 
 
@@ -88,7 +162,10 @@ def main():
     d_insights = []
     for i in range(3):
         d_insights.append(disease_insights())
-    print(d_insights)
+    # spray_insight = get_spray_conditions()
+    # print(spray_insight)
+    for i in d_insights:
+        print(i)
 
 
 if __name__ == "__main__":
