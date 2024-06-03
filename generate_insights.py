@@ -13,6 +13,13 @@ from collections import defaultdict
 
 
 def interval_extract(times):
+	"""
+	
+	Param:
+		times (list): Get interval of hours in times
+	Return:
+		insight (string): string with spray condtion insight
+	"""
     length = len(times)
     i = 0
     while i < length:
@@ -31,6 +38,14 @@ def interval_extract(times):
 
 
 def spray_condition_insight(parsed_dates, message):
+	"""
+	Create spray condition insights
+	Param:
+		parsed_dates (list): dates with spraying conditions matching message
+		message (string): advice message to start output string
+	Return:
+		insight (string): string with spray condtion insight
+	"""
     # Group by date
     date_groups = defaultdict(list)
     for dt in parsed_dates:
@@ -59,6 +74,11 @@ def spray_condition_insight(parsed_dates, message):
 
 
 def get_spray_conditions():
+	"""
+	generating spray condition insights from input json files
+	Return:
+		insight (string): string with spray condtion insight
+	"""
     f = open('spray.json')
     data = json.load(f)
     spray_times = []
@@ -86,6 +106,11 @@ def get_spray_conditions():
 
 
 def disease_insights():
+	"""
+	Create disease insights
+	Return:
+		insight (string): string with spray condtion insight
+	"""
     s = ['RECOMMENDED', 'CONSIDER', 'NULL']
     r = ["EXPECTED_INFECTIONS", 'OLD_INFECTIONS', 'RECENT_INFECTIONS']
     t = ['GROWTH', 'CONTACT']
@@ -156,6 +181,11 @@ def disease_insights():
 
 
 def irrigation_insights():
+	"""
+	Create irrigation insights
+	Return:
+		insight (string): string with irrigation insight
+	"""
     s = ['REFILL', 'FULL', 'OPTIMAL']
 
     sws = random.choice(s)
