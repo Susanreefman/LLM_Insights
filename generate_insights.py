@@ -83,7 +83,7 @@ def get_spray_conditions():
         else:
             insight = spray_condition_insight(very_good, 'very_good')
     return insight
-    
+
 
 def disease_insights():
     s = ['RECOMMENDED', 'CONSIDER', 'NULL']
@@ -155,17 +155,64 @@ def disease_insights():
     return insight + spray_insight
 
 
+def irrigation_insights():
+    s = ['REFILL', 'FULL', 'OPTIMAL']
+
+    sws = random.choice(s)
+    days_to_refill = random.randint(1,14)
+    storage = random.randint(1,1) #check borders
+
+    if sws == 'REFILL':
+        insight = 'Soil water is now less than the refill point. Plant water stress can occur if refill status persists.'
+
+    if sws == 'FULL':
+        if days_to_refill > 7:
+            insight = f'Soil water is above the full point. Plant damage and cost inefficiency can occur if full status persists.' \
+            f'Without irrigation, soil water is expected to fall below the refill point in about {days_to_refill}'
+        else:
+            insight = f'Soil water is above the full point. Plant damage and cost inefficiency can occur if full status persists.' \
+            f'Without irrigation, soil water is expected to fall below the refill point within the next {days_to_refill} days'
+
+    if sws == 'OPTIMAL':
+       if days_to_refill > 7:
+           insight = f'Soil water is currently in the optimal range for plant health. Soil water is not expected to fall below the refill point within the next 7 days, even without irrigation.'  \
+           f'There is currently storage capacity for up to {storage} inches of additional water'
+       elif (days_to_refill - 1) < 2:
+           insight = f'Soil water is currently in the optimal range for plant health. Irrigate in the next {days_to_refill-1} to maintain optimal range.' \
+           f'There is currently storage capacity for up to {storage} inches of additional water'
+       else:
+           insight = f'Soil water is currently in the optimal range for plant health. Irrigate in the next day to avoid refill status' \
+           f'There is currently storage capacity for up to {storage} inches of additional water'
+
+
+    # time_refill = list()
+    # full_run_time = list()
+    # moisture_forecast = list()
+
+    return insight
+
 
 def main():
     """
     """
-    d_insights = []
+    # Irrigation insights
+    i_insights = []
     for i in range(3):
-        d_insights.append(disease_insights())
+        i_insights.append(irrigation_insights())
+
+    for i in i_insights:
+        print(i)
+
+    # Disease insights
+    # d_insights = []
+    # for i in range(3):
+    #     d_insights.append(disease_insights())
     # spray_insight = get_spray_conditions()
     # print(spray_insight)
-    for i in d_insights:
-        print(i)
+    # for i in d_insights:
+    #     print(i)
+
+
 
 
 if __name__ == "__main__":
