@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
-
+LLM.py
+Script to train and use Large Language model
 """
+import sys
 
 # loading dataset
 import pandas as pd
@@ -28,20 +30,45 @@ import evaluate
 
 # Tokenize function
 def tokenize(lines, token='word'):
-    """Make from sentence a list like ["Make", "from", "sentence"]"""
+    """
+    Make from sentence a list with separate words, like ["Make", "from", "sentence"]
+    Parameters:
+        lines (list): input strings
+        token (string): input token
+    Returns:
+        (list): split sentences
+    """
     assert token in ('word', 'char'), 'Unknown token type: ' + token
     return [line.split() if token == 'word' else list(line) for line in lines]
 
 
 # padding function
 def truncate_pad(line, num_steps, padding_token):
+    """
+    Truncate and pad sentences
+    Parameters:
+        line (list): input sentence
+        num_steps (int): number of steps to truncate
+        token (string): input token
+    Returns:
+        (list): split sentences
+    """
     if len(line) > num_steps:
         return line[:num_steps]  # Truncate
     return line + [padding_token] * (num_steps - len(line))  # Pad
 
 
 def build_array_sum(lines, vocab, num_steps):
-    """function to add eos and padding and also determine valid length of each data sample"""
+    """
+    function to add eos and padding and also determine valid length of each data sample
+    Parameters
+        lines ():
+        vocab ():
+        num_steps ():
+    Returns
+        array ():
+        valid_len ():
+    """
     lines = [vocab[l] for l in lines]
     # Add end of sentence
     lines = [l + [vocab['<eos>']] for l in lines]
@@ -52,49 +79,93 @@ def build_array_sum(lines, vocab, num_steps):
     return array, valid_len
 
 
-# create the tensor dataset object
 def load_array(data_arrays, batch_size, is_train=True):
+    """"
+    Loading arrays in Tensor
+    Parameters
+        data_arrays ():
+        batch_size ():
+        is_train ():
+    Returns
+        ():
+    """
     dataset = torch.utils.data.TensorDataset(*data_arrays)
     return torch.utils.data.DataLoader(dataset, batch_size, shuffle=is_train)
 
 
-def transpose_qkv(X, num_heads):
-    # Function to transpose the linearly transformed query key and values
-    X = X.reshape(X.shape[0], X.shape[1], num_heads, -1)
-    X = X.permute(0, 2, 1, 3)
-    return X.reshape(-1, X.shape[2], X.shape[3])
+def transpose_qkv(matrix, num_heads):
+    """
+    Function to transpose the linearly transformed query, key and values matrices
+    Parameters
+        matrix ():
+        num_heads ():
+    Returns
+        ():
+    """
+    matrix = matrix.reshape(matrix.shape[0], matrix.shape[1], num_heads, -1)
+    matrix = matrix.permute(0, 2, 1, 3)
+    return matrix.reshape(-1, matrix.shape[2], matrix.shape[3])
 
 
-def transpose_output(X, num_heads):
-    # For output formatting
-    X = X.reshape(-1, num_heads, X.shape[1], X.shape[2])
-    X = X.permute(0, 2, 1, 3)
-    return X.reshape(X.shape[0], X.shape[1], -1)
+def transpose_output(matrix, num_heads):
+    """
+    Function to transpose the linearly transformed output matrices
+    Parameters
+        matrix ():
+        num_heads ():
+    Returns
+        ():
+    """
+    matrix = matrix.reshape(-1, num_heads, matrix.shape[1], matrix.shape[2])
+    matrix = matrix.permute(0, 2, 1, 3)
+    return matrix.reshape(matrix.shape[0], matrix.shape[1], -1)
 
 
-def sequence_mask(X, valid_len, value=0):
+def sequence_mask(matrix, valid_len, value=0):
+    """
+    Mask irrelevant padded tokens
+    Parameters
+        matrix ():
+        valid_len ():
+        value (int):
+    Returns
+        ():
+    """
     # Here masking is used so that irrelevant padding tokens are not considered while calculations
-    maxlen = X.size(1)
-    mask = torch.arange((maxlen), dtype=torch.float32)[None, :] < valid_len[:, None]  # device=X.device
-    X[~mask] = value
-    return X
+    mask = torch.arange(matrix.size(1), dtype=torch.float32)[None, :] < valid_len[:, None]  # device=X.device
+    matrix[~mask] = value
+    return matrix
 
 
-def masked_softmax(X, valid_lens):
-    # the irrelevant tokens are given a very small negative value which gets ignored in the subsequent calculations
-    if valid_lens is None:
-        return nn.functional.softmax(X, dim=-1)
+def masked_softmax(matrix, valid_len):
+    """
+    Mask irrelevant padded tokens by giving it a small negative value
+    Parameters
+        matrix ():
+        valid_len ():
+    Returns
+        ():
+    """
+    if valid_len is None:
+        return nn.functional.softmax(matrix, dim=-1)
     else:
-        shape = X.shape
-        if valid_lens.dim() == 1:
-            valid_lens = torch.repeat_interleave(valid_lens, shape[1])
+        shape = matrix.shape
+        if valid_len.dim() == 1:
+            valid_len = torch.repeat_interleave(valid_len, shape[1])
         else:
-            valid_lens = valid_lens.reshape(-1)
-        X = sequence_mask(X.reshape(-1, shape[-1]), valid_lens, value=-1e6)
-        return nn.functional.softmax(X.reshape(shape), dim=-1)
+            valid_len = valid_len.reshape(-1)
+        matrix = sequence_mask(matrix.reshape(-1, shape[-1]), valid_len, value=-1e6)
+        return nn.functional.softmax(matrix.reshape(shape), dim=-1)
 
 
 def get_device(i=0):
+    """
+    Returns the specified CUDA device if available, otherwise defaults to CPU.
+    Parameters:
+        i (int): The index of the CUDA device to use. Defaults to 0.
+    Returns:
+        torch.device: CUDA device if available, otherwise the CPU device.
+    """
     if torch.cuda.device_count() >= i + 1:
         return torch.device(f'cuda:{i}')
     else:
@@ -102,6 +173,12 @@ def get_device(i=0):
 
 
 def grad_clipping(net, theta):
+    """
+    Clips the gradients of a neural network to prevent gradient explosion.
+    Parameters:
+        net (nn.Module): The neural network whose gradients are to be clipped.
+        theta (float): The threshold value for clipping
+    """
     if isinstance(net, nn.Module):
         params = [p for p in net.parameters() if p.requires_grad]
     else:
@@ -112,9 +189,11 @@ def grad_clipping(net, theta):
             param.grad[:] *= theta / norm
 
 
-# the vocabulary class
 class Vocab:
+    """A vocabulary class for mapping tokens to indices and vice versa."""
+
     def __init__(self, tokens=[], min_freq=0, reserved_tokens=[]):
+        """Initializes the Vocab instance with a list of tokens, a minimum frequency threshold, and reserved tokens. """
         # Flatten a 2D list if needed
         if tokens and isinstance(tokens[0], list):
             tokens = [token for line in tokens for token in line]
@@ -129,28 +208,37 @@ class Vocab:
                              for idx, token in enumerate(self.idx_to_token)}
 
     def __len__(self):
+        """Returns the number of unique tokens in the vocabulary."""
         return len(self.idx_to_token)
 
     def __getitem__(self, tokens):
+        """Returns the index of a token or a list of indices for a list of tokens.
+        If the token is not found, returns the index for the unknown token. """
         if not isinstance(tokens, (list, tuple)):
             return self.token_to_idx.get(tokens, self.unk)
         return [self.__getitem__(token) for token in tokens]
 
     def to_tokens(self, indices):
+        """Returns the token corresponding to an index or a list of tokens for a list of indices. """
         if hasattr(indices, '__len__') and len(indices) > 1:
             return [self.idx_to_token[int(index)] for index in indices]
         return self.idx_to_token[indices]
 
     def unk(self):  # Index for the unknown token
+        """Returns the index for the unknown token."""
         return self.token_to_idx['<unk>']
 
     def print_variable(self):
+        """Prints the idx_to_token and token_to_idx attributes."""
         print("Variable idx_to_token:", self.idx_to_token)
         print("Variable idx_to_token:", self.token_to_idx)
 
 
 class MultiHeadAttention(nn.Module):
+    """mechanism that allows the model to jointly attend to information
+    from different representation subspaces."""
     def __init__(self, key_size, query_size, value_size, num_hiddens, num_heads, dropout, bias=False, **kwargs):
+        """Initializes the MultiHeadAttention instance with the given parameters."""
         super(MultiHeadAttention, self).__init__(**kwargs)
         self.num_heads = num_heads
         self.attention = DotProductAttention(dropout)
@@ -160,6 +248,7 @@ class MultiHeadAttention(nn.Module):
         self.w_o = nn.Linear(num_hiddens, num_hiddens, bias=bias)
 
     def forward(self, queries, keys, values, valid_lens):
+        """Computes the multi-head attention for the given queries, keys, and values."""
         queries = transpose_qkv(self.w_q(queries), self.num_heads)
         keys = transpose_qkv(self.w_k(keys), self.num_heads)
         values = transpose_qkv(self.w_v(values), self.num_heads)
@@ -172,32 +261,41 @@ class MultiHeadAttention(nn.Module):
 
 
 class DotProductAttention(nn.Module):
+    """Dot-product attention mechanism that scales the dot products of the query and key vectors """
     # The dot product attention scoring function
     def __init__(self, dropout, **kwargs):
+        """Initializes the DotProductAttention instance with the given dropout rate."""
         super(DotProductAttention, self).__init__(**kwargs)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, queries, keys, values, valid_lens=None):
+    def forward(self, queries, keys, values, valid_len=None):
+        """Computes the dot-product attention for the given queries, keys, and values"""
         d = queries.shape[-1]
         scores = torch.bmm(queries, keys.transpose(1, 2)) / math.sqrt(d)
-        self.attention_weights = masked_softmax(scores, valid_lens)
+        self.attention_weights = masked_softmax(scores, valid_len)
 
         return torch.bmm(self.dropout(self.attention_weights), values)
 
 
 class PositionWiseFFN(nn.Module):
+    """Position-wise feed-forward network used in transformer models."""
     def __init__(self, ffn_num_input, ffn_num_hiddens, ffn_num_output, **kwargs):
+        """Initializes the PositionWiseFFN instance with the given input, hidden, and output sizes."""
         super(PositionWiseFFN, self).__init__(**kwargs)
         self.dense1 = nn.Linear(ffn_num_input, ffn_num_hiddens)
         self.relu = nn.ReLU()
         self.dense2 = nn.Linear(ffn_num_hiddens, ffn_num_output)
 
     def forward(self, X):
+        """Applies the feed-forward network to the input tensor X."""
         return self.dense2(self.relu(self.dense1(X)))
 
 
 class PositionalEncoding(nn.Module):
+    """Adds positional encoding to the input tensor to incorporate the position information in the sequences."""
     def __init__(self, num_hiddens, dropout, max_len=1000):
+        """Initializes the PositionalEncoding instance with the given parameters for number of hidden layers
+        and dropout rate"""
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(dropout)
         self.P = torch.zeros((1, max_len, num_hiddens))
@@ -207,14 +305,16 @@ class PositionalEncoding(nn.Module):
         self.P[:, :, 1::2] = torch.cos(X)
 
     def forward(self, X):
+        """Adds positional encoding to the input tensor X and applies dropout."""
         X = X + self.P[:, :X.shape[1], :].to(X.device)
         return self.dropout(X)
 
 
-# class for the block structure within
 class EncoderBlock(nn.Module):
+    """Encoder Block"""
     def __init__(self, key_size, query_size, value_size, num_hiddens, norm_shape, ffn_num_input,
                  ffn_num_hiddens, num_heads, dropout, use_bias=False, **kwargs):
+        """Initializes the EncoderBlock instance with the given parameters."""
         super(EncoderBlock, self).__init__(**kwargs)
         self.attention = MultiHeadAttention(key_size, query_size, value_size, num_hiddens, num_heads, dropout, use_bias)
         self.addnorm1 = AddNorm(norm_shape, dropout)
@@ -222,14 +322,16 @@ class EncoderBlock(nn.Module):
         self.addnorm2 = AddNorm(norm_shape, dropout)
 
     def forward(self, X, valid_lens):
+        """Applies the encoder block to the input tensor X with the given valid lengths."""
         Y = self.addnorm1(X, self.attention(X, X, X, valid_lens))
         return self.addnorm2(Y, self.ffn(Y))
 
 
-# the main encoder class
 class TransformerEncoder(nn.Module):
+    """Transformer encoder consisting of stacked encoder blocks"""
     def __init__(self, vocab_size, key_size, query_size, value_size, num_hiddens, norm_shape, ffn_num_input,
                  ffn_num_hiddens, num_heads, num_layers, dropout, use_bias=False, **kwargs):
+        """Initializes the TransformerEncoder instance with the given parameters."""
         super(TransformerEncoder, self).__init__(**kwargs)
         self.num_hiddens = num_hiddens
         self.embedding = nn.Embedding(vocab_size, num_hiddens)
@@ -241,6 +343,7 @@ class TransformerEncoder(nn.Module):
                                               ffn_num_hiddens, num_heads, dropout, use_bias))
 
     def forward(self, X, valid_lens, *args):
+        """Applies the transformer encoder to the input tensor X with the given valid lengths."""
         X = self.pos_encoding(self.embedding(X) * math.sqrt(self.num_hiddens))
         self.attention_weights = [None] * len(self.blks)
         for i, blk in enumerate(self.blks):
@@ -250,8 +353,10 @@ class TransformerEncoder(nn.Module):
 
 
 class DecoderBlock(nn.Module):
+    """Decoder block"""
     def __init__(self, key_size, query_size, value_size, num_hiddens, norm_shape,
                  ffn_num_input, ffn_num_hiddens, num_heads, dropout, i, **kwargs):
+        """Initializes the DecoderBlock instance with the given parameters."""
         super(DecoderBlock, self).__init__(**kwargs)
         self.i = i
         self.attention1 = MultiHeadAttention(key_size, query_size, value_size, num_hiddens, num_heads, dropout)
@@ -262,6 +367,7 @@ class DecoderBlock(nn.Module):
         self.addnorm3 = AddNorm(norm_shape, dropout)
 
     def forward(self, X, state):
+        """Applies the decoder block to the input tensor X and updates the state."""
         enc_outputs, enc_valid_lens = state[0], state[1]
         if state[2][self.i] is None:  # true when training the model
             key_values = X
@@ -280,10 +386,11 @@ class DecoderBlock(nn.Module):
         return self.addnorm3(Z, self.ffn(Z)), state
 
 
-# The main decoder class
 class TransformerDecoder(nn.Module):
+    """Transformer decoder consisting of stacked decoder blocks"""
     def __init__(self, vocab_size, key_size, query_size, value_size, num_hiddens,
                  norm_shape, ffn_num_input, ffn_num_hiddens, num_heads, num_layers, dropout, **kwargs):
+        """Initializes the TransformerEncoder instance with the given parameters."""
         super(TransformerDecoder, self).__init__(**kwargs)
         self.num_hiddens = num_hiddens
         self.num_layers = num_layers
@@ -298,9 +405,11 @@ class TransformerDecoder(nn.Module):
             self.dense = nn.Linear(num_hiddens, vocab_size)
 
     def init_state(self, enc_outputs, enc_valid_lens, *args):
+        """Initializes the decoder state with encoder outputs and valid lengths."""
         return [enc_outputs, enc_valid_lens, [None] * self.num_layers]
 
     def forward(self, X, state):
+        """Applies the transformer decoder to the input tensor X with the given state."""
         X = self.pos_encoding(self.embedding(X) * math.sqrt(self.num_hiddens))
         self._attention_weights = [[None] * len(self.blks) for _ in range(2)]
         for i, blk in enumerate(self.blks):
@@ -310,6 +419,7 @@ class TransformerDecoder(nn.Module):
         return self.dense(X), state
 
     def attention_weights(self):
+        """Returns the attention weights from all decoder blocks."""
         return self._attention_weights
 
 
@@ -317,33 +427,45 @@ class AddNorm(nn.Module):
     """The residual connection followed by layer normalization."""
 
     def __init__(self, norm_shape, dropout):
+        """Initializes the AddNorm instance with the given shape for layer normalization and dropout rate."""
         super().__init__()
         self.dropout = nn.Dropout(dropout)
         self.ln = nn.LayerNorm(norm_shape)
 
     def forward(self, X, Y):
+        """Applies the residual connection and layer normalization to the input tensor X with the residual Y."""
         return self.ln(self.dropout(Y) + X)
 
 
 class Accumulator:
+    """Accumulator class to accumulate values in a list."""
     def __init__(self, n):
+        """Initializes Accumulator with n zeros in data."""
         self.data = [0.0] * n
 
     def add(self, *args):
+        """Adds values in args to corresponding indices in data"""
         self.data = [a + float(b) for a, b in zip(self.data, args)]
 
     def reset(self):
+        """Resets all values in data to zero."""
         self.data = [0.0] * len(self.data)
 
     def __getitem__(self, idx):
+        """Returns the value at index idx in data."""
         return self.data[idx]
 
 
 class MaskedSoftmaxCELoss(nn.CrossEntropyLoss):
-    # `pred` shape: (`batch_size`, `num_steps`, `vocab_size`)
-    # `label` shape: (`batch_size`, `num_steps`)
-    # `valid_len` shape: (`batch_size`,)
+    """Masked softmax cross-entropy loss function."""
+
     def forward(self, pred, label, valid_len):
+        """
+         Computes the masked softmax cross-entropy loss.
+        `pred` shape: (`batch_size`, `num_steps`, `vocab_size`)
+        `label` shape: (`batch_size`, `num_steps`)
+        `valid_len` shape: (`batch_size`,)
+        """
         weights = torch.ones_like(label)
         weights = sequence_mask(weights, valid_len)
         self.reduction = 'none'
@@ -353,19 +475,35 @@ class MaskedSoftmaxCELoss(nn.CrossEntropyLoss):
 
 
 class Transformer(nn.Module):
+    """Transformer model composed of an encoder and a decoder."""
     def __init__(self, encoder, decoder):
+        """Initializes the Transformer model with given encoder and decoder."""
         super().__init__()
         self.encoder = encoder
         self.decoder = decoder
 
     def forward(self, enc_X, dec_X, *args):
+        """Performs forward pass of the Transformer model."""
         enc_all_outputs = self.encoder(enc_X, *args)
         dec_state = self.decoder.init_state(enc_all_outputs, *args)
         # Return decoder output only
         return self.decoder(dec_X, dec_state)[0]
 
 
-def train_seq2seq(net, data_iter, lr, num_epochs, tgt_vocab, device):
+def train_model(net, data_iter, lr, num_epochs, tgt_vocab, device):
+    """
+    Train a sequence-to-sequence model.
+    Parameters:
+    net (nn.Module): The sequence-to-sequence model to be trained.
+    data_iter (iterable): The data iterator providing batches of data.
+    lr (float): Learning rate for the optimizer.
+    num_epochs (int): Number of training epochs.
+    tgt_vocab (Vocab): Vocabulary object for the target language.
+    device (torch.device): Device (CPU or GPU) on which to train the model.
+
+    Returns:
+        (list): List of losses recorded during training.
+    """
     net.to(device)
     optimizer = torch.optim.Adam(net.parameters(), lr=lr)
     loss = MaskedSoftmaxCELoss()
@@ -393,7 +531,21 @@ def train_seq2seq(net, data_iter, lr, num_epochs, tgt_vocab, device):
     return train_losses
 
 
-def predict_seq2seq(net, src_sentence, src_vocab, tgt_vocab, num_steps, device, save_attention_weights=False):
+def predicting_model(net, src_sentence, src_vocab, tgt_vocab, num_steps, device, save_attention_weights=False):
+    """
+    Perform sequence prediction using a sequence-to-sequence model.
+    Parameters:
+        net (nn.Module): The trained sequence-to-sequence model.
+        src_sentence (str): Source sentence to translate.
+        src_vocab (Vocab): Vocabulary object for the source language.
+        tgt_vocab (Vocab): Vocabulary object for the target language.
+        num_steps (int): Maximum number of decoding time steps.
+        device (torch.device): Device (CPU or GPU) on which to perform inference.
+        save_attention_weights (bool, optional): Whether to save attention weights during decoding. Default is False.
+    Returns:
+        (tuple): A tuple containing the predicted target sequence (str) and attention weights (list of tensors).
+
+    """
     # Set `net` to eval mode for inference
     net.eval()
     src_tokens = src_vocab[src_sentence.lower().split(' ')] + [src_vocab['<eos>']]
@@ -430,7 +582,27 @@ def predict_seq2seq(net, src_sentence, src_vocab, tgt_vocab, num_steps, device, 
     else:
         return ' '.join(tgt_vocab.to_tokens(output_seq)), attention_weight_seq
 
+
+def evaluate_model(actual, predictions):
+    """
+    Evaluate the model predictions against actual references using ROUGE metric.
+    Parameters:
+        actual (torch.Tensor): Actual target sequences as a tensor.
+        predictions (list): Predicted target sequences as a list of strings.
+    Returns:
+        results (dict): Dictionary containing ROUGE scores.
+    """
+    rouge = evaluate.load('rouge')
+    y = actual.tolist()
+    ref = []
+    for i in y:
+        ref.append([i])
+    results = rouge.compute(predictions=predictions, references=ref)
+    return results
+
+
 def main():
+    """ """
     data = pd.read_csv('/home/vboxuser/Documents/data_old.csv', delimiter=';')
 
     x_train, x_test, y_train, y_test = tts(data['Text'], data['Summary'], test_size=0.1, shuffle=True, random_state=111)
@@ -471,31 +643,20 @@ def main():
     starttime = perf_counter()
     lr = 0.005
     num_epochs = 50
-    train_losses = train_seq2seq(net, data_iter, lr, num_epochs, tgt_vocab, device)
+    train_losses = train_model(net, data_iter, lr, num_epochs, tgt_vocab, device)
     print(f'Verstreken tijd: {(perf_counter() - starttime) / 60.0:.1f} minuten.')
 
     sample = x_test[:10]
     actual = y_test[:10]
     predictions = []
     for s, a in zip(sample, actual):
-        pred_sum, _ = predict_seq2seq(net, s, src_vocab, tgt_vocab, max_len_summary, device)
+        pred_sum, _ = predicting_model(net, s, src_vocab, tgt_vocab, max_len_summary, device)
         predictions.append(pred_sum)
         print("SAMPLE : {}".format(s))
         print("ACTUAL : {}".format(a))
         print("PREDICTED : {}".format(pred_sum))
         print('')
 
-def evaluate_model(actual, predictions):
-    rouge = evaluate.load('rouge')
-    y = actual.tolist()
 
-    ref = []
-    for i in y:
-        ref.append([i])
-
-    results = rouge.compute(predictions=predictions, references=ref)
-    return results
-
-
-
-
+if __name__ == "__main__":
+    sys.exit(main())
