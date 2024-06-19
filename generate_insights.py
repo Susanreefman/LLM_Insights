@@ -2,20 +2,15 @@
 # -*- coding: utf-8 -*-
 
 """
-
 """
+
+
 import json
 import sys
 import csv
 import random
 import datetime
 from collections import defaultdict
-
-
-# import re
-# import nltk
-# from gensim.summarization import summarize
-# nltk.download('punkt')
 
 
 def interval_extract(times):
