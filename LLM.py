@@ -62,7 +62,7 @@ def build_array_sum(lines, vocab, num_steps):
     """
     function to add eos and padding and also determine valid length of each data sample
     Parameters
-        lines ():
+        lines (list): input sentences
         vocab ():
         num_steps ():
     Returns
@@ -83,11 +83,11 @@ def load_array(data_arrays, batch_size, is_train=True):
     """"
     Loading arrays in Tensor
     Parameters
-        data_arrays ():
-        batch_size ():
-        is_train ():
+        data_arrays (list): list of arrays including data
+        batch_size (int): number of samples in each batch
+        is_train (bool): mode of running the model
     Returns
-        ():
+        (Tensor): including the data in tensor format
     """
     dataset = torch.utils.data.TensorDataset(*data_arrays)
     return torch.utils.data.DataLoader(dataset, batch_size, shuffle=is_train)
@@ -97,10 +97,10 @@ def transpose_qkv(matrix, num_heads):
     """
     Function to transpose the linearly transformed query, key and values matrices
     Parameters
-        matrix ():
-        num_heads ():
+        matrix (Tensor): matrix with represented values
+        num_heads (int): number of attention heads
     Returns
-        ():
+        (Tensor): transposed matrix
     """
     matrix = matrix.reshape(matrix.shape[0], matrix.shape[1], num_heads, -1)
     matrix = matrix.permute(0, 2, 1, 3)
@@ -111,10 +111,10 @@ def transpose_output(matrix, num_heads):
     """
     Function to transpose the linearly transformed output matrices
     Parameters
-        matrix ():
-        num_heads ():
+        matrix (Tensor): matrix of output values
+        num_heads (int): number of attention heads
     Returns
-        ():
+        (Tensor): transposed matrix
     """
     matrix = matrix.reshape(-1, num_heads, matrix.shape[1], matrix.shape[2])
     matrix = matrix.permute(0, 2, 1, 3)
@@ -125,11 +125,11 @@ def sequence_mask(matrix, valid_len, value=0):
     """
     Mask irrelevant padded tokens
     Parameters
-        matrix ():
-        valid_len ():
-        value (int):
+        matrix (Tensor): matrix of tokens
+        valid_len (int): valid length of sentence
+        value (int): value of mask
     Returns
-        ():
+        (Tensor): output tensor
     """
     # Here masking is used so that irrelevant padding tokens are not considered while calculations
     mask = torch.arange(matrix.size(1), dtype=torch.float32)[None, :] < valid_len[:, None]  # device=X.device
@@ -141,10 +141,10 @@ def masked_softmax(matrix, valid_len):
     """
     Mask irrelevant padded tokens by giving it a small negative value
     Parameters
-        matrix ():
-        valid_len ():
+        matrix (Tensor): matrix with tokens
+        valid_len (int): valid length of dimension
     Returns
-        ():
+        (Tensor): output tensor
     """
     if valid_len is None:
         return nn.functional.softmax(matrix, dim=-1)
@@ -617,7 +617,7 @@ def parse_args():
 
 
 def main():
-    """ """
+    """Main"""
     args = parse_args()
     data = pd.read_csv(args.f, delimiter=';')
 
@@ -675,4 +675,8 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nScript terminated by the user.")
+        sys.exit(1)
