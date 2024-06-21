@@ -9,7 +9,7 @@ import sys
 
 # loading dataset
 import pandas as pd
-
+import argparse
 # split dataset
 from sklearn.model_selection import train_test_split as tts
 
@@ -601,9 +601,25 @@ def evaluate_model(actual, predictions):
     return results
 
 
+def parse_args():
+    """
+    parse command-line arguments for input and output files
+
+    Returns:
+        parser.parse_args()
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-f", "--file",
+                        help="""The input data in CSV format""",
+                        required=True)
+    return parser.parse_args()
+
+
+
 def main():
     """ """
-    data = pd.read_csv('/home/vboxuser/Documents/data_old.csv', delimiter=';')
+    args = parse_args()
+    data = pd.read_csv(args.f, delimiter=';')
 
     x_train, x_test, y_train, y_test = tts(data['Text'], data['Summary'], test_size=0.1, shuffle=True, random_state=111)
 
