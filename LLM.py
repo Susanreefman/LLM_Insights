@@ -619,7 +619,7 @@ def parse_args():
 def main():
     """Main"""
     args = parse_args()
-    data = pd.read_csv(args.f, delimiter=';')
+    data = pd.read_csv(args.file, delimiter=';')
 
     x_train, x_test, y_train, y_test = tts(data['Text'], data['Summary'], test_size=0.1, shuffle=True, random_state=111)
 
